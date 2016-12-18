@@ -59,7 +59,7 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
     >>> import numpy as np
     >>> np.random.seed(4711)
     >>> a = np.random.multivariate_normal([10, 0], [[3, 1], [1, 4]],size=[10,])  
-    >>> b = np.random.multivariate_normal([0, 20], [[3, 1], [1, 4]], size=[10,])
+    >>> b = np.random.multivariate_normal([0, 20], [[3, 1], [1, 4]],size=[10,])
     >>> X = np.concatenate((a, b),)
     >>> sl = SingleLink(h=3.6).fit(X)
     >>> sl.clusters_
