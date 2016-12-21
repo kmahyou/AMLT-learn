@@ -25,7 +25,7 @@ from scipy.spatial.distance import pdist
 from sklearn.cluster import KMeans
 import numpy as np
 
-def gap(X, K = 10, B = 10):
+def gap(X, K = 10, B = 10, ref_method="obsfeat"):
     """Gap statistics to estimate the number of clusters in a dataset
 
     Parameters
@@ -38,6 +38,19 @@ def gap(X, K = 10, B = 10):
 
     B: int, default=10
         number of Monte Carlo samples ("bootstrap")
+
+    ref_method: "obsfeat" or "svd", default="obsfeat"
+        which method to use to generate reference data sets.
+        
+        "obsfeat": generate each reference feature uniformly over the range of
+        the obversed values for that particular feature.
+        
+        "svd": generate the reference features from a uniform distribution over a
+        box aligned with the principal components of the data using SVD
+        decomposition.
+
+        "obsfeat" has the advantage of simplicity. Whereas "svd" takes into
+        account the shape of the data distribution.
 
     Returns
     -------
@@ -61,8 +74,8 @@ def gap(X, K = 10, B = 10):
     >>> from gap_statistics import gap
     >>> import numpy as np
     >>> X = np.asarray([[9.21188389,-0.15188589], [8.88937431,-0.33937464],
-            [10.76840064,2.95244645], [-1.41259576,21.66814229],
-            [1.48256428,19.71376506], [1.49912084,19.44886828]])
+        ... [10.76840064,2.95244645], [-1.41259576,21.66814229],
+        ... [1.48256428,19.71376506], [1.49912084,19.44886828]])
     >>> k, W_obs, W_exp, W_exp_std = gap(X, K = 4, B = 10)
     >>> k
     2
@@ -83,6 +96,16 @@ def gap(X, K = 10, B = 10):
 
     n_init_ = 5
     max_iter_ = 50
+    
+    # check if the reference generator method is the required one
+    if ref_method == "obsfeat":
+        gen_ref = generate_uniform_points
+    elif ref_method == "svd":
+        gen_ref = generate_uniform_points_svd
+    else:
+        raise ValueError("Reference method must be 'obsfeat' or 'svd', got"
+                " %s" % str(ref_method))
+
 
     # cluster the observed data with different k=1..K and calculate W_obs
     W_obs = np.zeros(K)
@@ -98,7 +121,8 @@ def gap(X, K = 10, B = 10):
     W_exp = np.zeros((B, K))
     for b in xrange(B):
         # generate reference dataset
-        U = generate_uniform_points(X)
+        #U = generate_uniform_points_svd(X)
+        U = gen_ref(X)
 
         for k in xrange(K):
             # cluster the data
@@ -125,7 +149,6 @@ def gap(X, K = 10, B = 10):
     
     return k_hat, W_obs, W_exp_mean, W_exp_std
 
-
 def generate_uniform_points(X):
     """Generate Uniform points in the observed data X range
 
@@ -135,7 +158,7 @@ def generate_uniform_points(X):
     Paramters
     ---------
     X: {array-like, sparse matrix}, shape=(n_samples, n_features)
-        dataset to estimate the clusters in
+        dataset to generate features range from
 
     Returns
     -------
@@ -157,6 +180,37 @@ def generate_uniform_points(X):
             xrange(len(mins))]
 
     return np.asarray(U).T
+
+def generate_uniform_points_svd(X):
+    """Generate Uniform points in the observed data X range
+
+    Generate the reference features from a uniform distribution over a box
+    aligned with the principal components of the data. Using singular value
+    decomposition (UDV)
+
+    Paramters
+    ---------
+    X: {array-like, sparse matrix}, shape=(n_samples, n_features)
+        dataset to generate features range from
+
+    Returns
+    -------
+    U: array-like, shape=(n_samples, n_features)
+        uniformly generated dataset, where each uniform feature is generated in
+        the range of each observed feature
+
+    """
+
+    # calculate de decomposition of the data
+    U, s, V = np.linalg.svd(X, full_matrices=True)
+
+    # tranform it and draw uniform points in the range of columns
+    X_a = np.dot(X, V)    
+    Z = generate_uniform_points(X_a)
+
+    # back-tranform and return the result
+    return np.dot(Z, np.transpose(V))
+
 
 def dispersion(X, labels):
     """Calculate the within-cluster dispersion
@@ -216,7 +270,7 @@ if __name__ == "__main__":
             [-1.41259576,21.66814229]])
 
     # run gap statistics algorithm
-    k, W_obs, W_exp, W_exp_std = gap(X)
+    k, W_obs, W_exp, W_exp_std = gap(X, ref_method="obsfeat")
 
     print "---W obs---"
     print W_obs
