@@ -94,8 +94,8 @@ def gap(X, K = 10, B = 10, ref_method="obsfeat"):
     
     """
 
-    n_init_ = 5
-    max_iter_ = 50
+    n_init_ = 10
+    max_iter_ = 100
     
     # check if the reference generator method is the required one
     if ref_method == "obsfeat":
@@ -105,7 +105,6 @@ def gap(X, K = 10, B = 10, ref_method="obsfeat"):
     else:
         raise ValueError("Reference method must be 'obsfeat' or 'svd', got"
                 " %s" % str(ref_method))
-
 
     # cluster the observed data with different k=1..K and calculate W_obs
     W_obs = np.zeros(K)
@@ -210,7 +209,6 @@ def generate_uniform_points_svd(X):
 
     # back-tranform and return the result
     return np.dot(Z, np.transpose(V))
-
 
 def dispersion(X, labels):
     """Calculate the within-cluster dispersion
