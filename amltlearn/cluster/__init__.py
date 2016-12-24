@@ -21,7 +21,13 @@ from .Leader import Leader
 from .KernelKMeans import KernelKMeans
 from .KModes import KModes
 from .KPrototypes import KPrototypes
+from .single_link import SingleLink
+from .leader_single_link import LeaderSingleLink
+from .augmented_leader_single_link import AugmentedLeaderSingleLink
 
 __all__ = ['GlobalKMeans',
            'Leader', 'KernelKMeans',
-           'KModes', 'KPrototypes']
+           'KModes', 'KPrototypes',
+           'SingleLink',
+           'LeaderSingleLink',
+           'AugmentedLeaderSingleLink']

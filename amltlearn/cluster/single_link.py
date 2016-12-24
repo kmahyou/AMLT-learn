@@ -1,7 +1,7 @@
 """
-.. module:: SingleLink
+.. module:: single_link
 
-SingleLink
+Single Link
 *************
 
 :Description: Single Link agglomerative hierarchical clustering algorithm based
@@ -21,6 +21,7 @@ between all pairs in these two clusters.
 __author__ = 'kmahyou'
 
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
+from sklearn.utils import check_array
 import numpy as np
 
 class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
@@ -30,43 +31,40 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
 
     Parameters
     ----------
-    h: float
-        cut-off distance. Distance-h stopping condition: Distance between any
+    h : float
+        Cut-off distance. Distance-h stopping condition: Distance between any
         pair of clusters in the clustering should be grater than h.
     
     Attributes
     ----------
-    clusters_: array, shape=(n_clusters, n_class_inst)
+    clusters_ : array-like, shape=(n_clusters, n_class_inst)
         Every element of this array has a list of instances indices that belong
         to the same cluster
 
-    labels_: array, shape=(n_instancecs)
+    labels_ : array, shape=(n_instances)
         Label of each instance
 
-    n_clusters: int
+    n_clusters : int
         Total number of clusters
     
-    height_: array, shape=(n_instanes)
+    height_ : array, shape=(n_instances)
         Indicates when one object joined the cluster of another object
 
-    parent_: array, shape=(n_instances)
+    parent_ : array, shape=(n_instances)
         Indicates who leads the parent cluster. It is useful to track merges
 
     Examples
     --------
     
-    >>> from SingleLink import SingleLink
+    >>> from single_link import SingleLink
     >>> import numpy as np
-    >>> np.random.seed(4711)
-    >>> a = np.random.multivariate_normal([10, 0], [[3, 1], [1, 4]],size=[10,])  
-    >>> b = np.random.multivariate_normal([0, 20], [[3, 1], [1, 4]],size=[10,])
-    >>> X = np.concatenate((a, b),)
-    >>> sl = SingleLink(h=3.6).fit(X)
-    >>> sl.clusters_
-    [[0, 1, 3, 6, 8, 5, 2, 9, 4, 7], [10, 13, 14, 17, 18, 11, 12, 15, 19, 16]]
+    >>> X = [[9.21,-0.15],[8.24,1.29],[8.10,-0.45],[8.72,-4.40],
+        ... [1.95,21.98],[-1.49,20.50],[-0.76,21.30],[0.95,19.87]]
+    >>> sl = SingleLink(h = 3.6).fit(X)
     >>> sl.labels_
-    array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            dtype=int32)
+    array([0, 0, 0, 0, 1, 1, 1, 1], dtype=int32)
+    >>> sl.clusters_
+    [[0, 2, 1, 3], [4, 5, 6, 7]]
 
     See also
     --------
@@ -92,7 +90,7 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Parameters
         ----------
-        X: {array-like, sparse matrix}, shape=(n_samples, n_features)
+        X : array-like, shape=(n_samples, n_features)
             Dataset set to cluster
 
         returns
@@ -100,6 +98,8 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
         self
 
         """
+
+        X = check_array(X)
 
         # compute
         clusters, self.height_, self.parent_ = self._fit_process(X)
@@ -144,6 +144,10 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
             # find two closest clusters
             min_dst, min_x, min_y = self._find_closest_clusters(dst, height, N)
 
+            # check for stopping criterion
+            if min_dst > self.h:
+                break
+
             # form a new cluster by merging the two closest newly found clusters
             # merge x in y since y < x. Thus preffer to keep y and drop x
             height[min_x] = min_dst
@@ -164,13 +168,15 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
                 dst[min_y][k] = min(dst[min_x][k], dst[min_y][k])
 
             # check for stopping criterion
-            if (min_dst > self.h) or (iter == (N - 1)): break
+            if iter == (N - 1):
+                break
 
             n_iter += 1
-
+        
         # if there are some singleton clusters, add them to final clustering
         for x in xrange(N):
-            if height[x] < self.INF: continue
+            if height[x] < self.INF:
+                continue
 
             if x not in clusters.keys():
                 clusters[x] = [x]
@@ -185,11 +191,12 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Parameters
         ----------
-        X: {array-like, sparse matrix}, shape=(n_samples, n_features)
+        X : array-like, shape=(n_samples, n_features)
+            Dataset to calculate a pairwise distance
 
         Returns
         -------
-        dst: array, shape=(n_samples, n_samples)
+        dst : array, shape=(n_samples, n_samples)
             Computed pair distances amoung elements of X
 
         """
@@ -199,7 +206,6 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
 
         # compute distances
         for i in xrange(N):
-            #dst[i][i] = self.INF # put infinity to itself because of future calculations
             # assumming symmetric distances
             for j in xrange(i):
                 dst[i][j] = np.sqrt(np.sum((X[i] - X[j]) ** 2))
@@ -212,26 +218,26 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
         
         Parameters
         ----------
-        dst: array, shape=(n_samples, n_samples)
-            distance matrix
+        dst : array-like, shape=(n_samples, n_samples)
+            Distance matrix
 
-        height: array, shape=(n_samples)
-            indicates when a cluster joined anoother one. It used here to find
+        height : array, shape=(n_samples)
+            Indicates when a cluster joined anoother one. It used here to find
             the unjoined clusters
 
-        N: int
-            number of samples
+        N : int
+            Number of samples
 
         Returns
         -------
-        min_dst: double
-            minimum found distance between two clusters
+        min_dst : double
+            Minimum found distance between two clusters
 
-        min_x: int
-            identifier of the first cluster
+        min_x : int
+            Identifier of the first cluster
 
-        min_y: int
-            identifier of the second cluster
+        min_y : int
+            Identifier of the second cluster
 
         """
         
@@ -239,33 +245,16 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
         min_x, min_y = (-1, -1)
     
         for x in xrange(N):
-            if height[x] < self.INF: continue
+            if height[x] < self.INF:
+                continue
         
             for y in xrange(x):
-                if height[y] < self.INF: continue
+                if height[y] < self.INF:
+                    continue
             
                 if dst[x][y] < min_dst:
                     min_dst = dst[x][y]
                     min_x, min_y = x, y
 
         return min_dst, min_x, min_y
-
-if __name__ == "__main__":
-    # generate dataset
-    np.random.seed(4711)
-    a = np.random.multivariate_normal([10, 0], [[3, 1], [1, 4]],size=[10,])  
-    b = np.random.multivariate_normal([0, 20], [[3, 1], [1, 4]], size=[10,])
-
-    X = np.concatenate((a, b),)
-    
-    # run SL algorithm 
-    sl = SingleLink(h = 3.6)
-    sl.fit(X)
-
-    print "---Clusters---"
-    for idx, c in enumerate(sl.clusters_):
-        print "C %d:" %(idx), c
-
-    print "---Labels---"
-    print sl.labels_
 
