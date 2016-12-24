@@ -26,6 +26,7 @@ from .cluster import within_scatter_matrix_score, between_scatter_matrix_score, 
 from .divergences import simetrized_kullback_leibler_divergence, kullback_leibler_divergence, bhattacharyya_distance,\
     jensen_shannon_divergence, renyi_half_divergence, square_frobenius_distance, hellinger_distance
 
+from .gap_statistics import gap_statistics
 
 __all__ = ['within_scatter_matrix_score',
            'between_scatter_matrix_score',
@@ -40,4 +41,5 @@ __all__ = ['within_scatter_matrix_score',
            'simetrized_kullback_leibler_divergence',
            'kullback_leibler_divergence, bhattacharyya_distance',
            'jensen_shannon_divergence', 'renyi_half_divergence',
-           'square_frobenius_distance', 'hellinger_distance']
+           'square_frobenius_distance', 'hellinger_distance',
+           'gap_statistics']

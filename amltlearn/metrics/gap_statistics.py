@@ -1,5 +1,5 @@
 """
-.. module:: evaluation
+.. module:: metrics
 
 Gap Statistics
 *************
@@ -22,69 +22,82 @@ null distribution.
 __author__ = 'kmahyou'
 
 from scipy.spatial.distance import pdist
+from sklearn.utils import check_random_state
+from sklearn.utils import check_array
 from sklearn.cluster import KMeans
 import numpy as np
 
-def gap(X, K = 10, B = 10, ref_method="obsfeat"):
+def gap_statistics(X, K = 10, B = 10, ref_method = "unif", 
+        random_state = None, **kwargs):
     """Gap statistics to estimate the number of clusters in a dataset
 
     Parameters
     ----------
-    X: {array-like, sparse matrix}, shape(n_samples, n_features)
+    X : array-like, shape(n_samples, n_features)
         Dataset to estimate the clusters in
 
-    K: int, default=10
-        number of clusters to consider
+    K : int, default=10
+        Number of clusters to consider
 
-    B: int, default=10
-        number of Monte Carlo samples ("bootstrap")
+    B : int, default=10
+        Number of Monte Carlo samples ("bootstrap")
 
-    ref_method: "obsfeat" or "svd", default="obsfeat"
-        which method to use to generate reference data sets.
+    ref_method : {"unif", "pc"}, default="unif"
+        Which method to use to generate reference data sets.
         
-        "obsfeat": generate each reference feature uniformly over the range of
+        "unif": generate each reference feature uniformly over the range of
         the obversed values for that particular feature.
         
-        "svd": generate the reference features from a uniform distribution over a
+        "pc": generate the reference features from a uniform distribution over a
         box aligned with the principal components of the data using SVD
         decomposition.
 
-        "obsfeat" has the advantage of simplicity. Whereas "svd" takes into
+        "unif" has the advantage of simplicity. Whereas "pc" takes into
         account the shape of the data distribution.
+
+    random_state : int or numpy.RandomState, default=None
+        The generator used to generate the reference samples. If an integer
+        given, it fixes the seed. Defaults to the global numpy random
+        generator.
+
+    **kwargs:
+        Additional parameters for KMeans algorithm
 
     Returns
     -------
-    k_hat: int
-        estimated number of clusters
+    k_hat : int
+        Estimated number of clusters
 
-    W_obs: array-like, shape(K)
-        within-cluster dispersion for different K's for given dataset X
+    W_obs : array, shape(K)
+        Within-cluster dispersion for different K's for given dataset X
 
-    W_exp_mean: array-like, shape(K)
-        within-cluster dispersion for different K's for generated dataset. This
+    W_exp_mean : array, shape(K)
+        Within-cluster dispersion for different K's for generated dataset. This
         is a mean of B generated datasets
 
-    W_exp_std: array-like, shape(K)
-        standard deviation of dispersion for different K's for generated
+    W_exp_std : array, shape(K)
+        Standard deviation of dispersion for different K's for generated
         dataset.
 
     Examples
     --------
     
-    >>> from gap_statistics import gap
+    >>> from amltlearn.metrics import gap_statistics
     >>> import numpy as np
-    >>> X = np.asarray([[9.21188389,-0.15188589], [8.88937431,-0.33937464],
+    >>> X = [[9.21188389,-0.15188589], [8.88937431,-0.33937464],
         ... [10.76840064,2.95244645], [-1.41259576,21.66814229],
-        ... [1.48256428,19.71376506], [1.49912084,19.44886828]])
-    >>> k, W_obs, W_exp, W_exp_std = gap(X, K = 4, B = 10)
+        ... [1.48256428,19.71376506], [1.49912084,19.44886828]]
+    >>> kmeans_args = {'n_init': 10,'max_iter': 500}
+    >>> k, W_obs, W_exp, W_exp_std = gap_statistics(X, K = 4, B = 10, 
+        ... random_state=42, **kmeans_args)
     >>> k
     2
     >>> W_obs
     array([ 2.85704081,  0.91999294,  0.28506657, -1.83498871])
     >>> W_exp
-    array([ 2.52347108,  1.80307407,  1.08936194,  0.37972856])
+    array([ 2.48145812,  1.75309355,  1.17625568,  0.43859918])
     >>> W_exp_std
-    array([ 0.18898569,  0.17419498,  0.26456884,  0.25577568])
+    array([ 0.21222606,  0.23449418,  0.24864987,  0.40315318])
     
     See also
     --------
@@ -94,24 +107,24 @@ def gap(X, K = 10, B = 10, ref_method="obsfeat"):
     
     """
 
-    n_init_ = 10
-    max_iter_ = 100
-    
+    X = check_array(X)
+
+    random_state = check_random_state(random_state)
+
     # check if the reference generator method is the required one
-    if ref_method == "obsfeat":
+    if ref_method == "unif":
         gen_ref = generate_uniform_points
-    elif ref_method == "svd":
+    elif ref_method == "pc":
         gen_ref = generate_uniform_points_svd
     else:
-        raise ValueError("Reference method must be 'obsfeat' or 'svd', got"
+        raise ValueError("Reference method must be 'unif' or 'pc', got"
                 " %s" % str(ref_method))
 
     # cluster the observed data with different k=1..K and calculate W_obs
     W_obs = np.zeros(K)
     for k in xrange(K):
         # cluster the data
-        kmeans = KMeans(n_clusters = k + 1, n_init = n_init_, 
-                max_iter = max_iter_).fit(X)
+        kmeans = KMeans(n_clusters = k + 1, **kwargs).fit(X)
     
         # dispersion
         W_obs[k] = dispersion(X, kmeans.labels_)
@@ -121,12 +134,11 @@ def gap(X, K = 10, B = 10, ref_method="obsfeat"):
     for b in xrange(B):
         # generate reference dataset
         #U = generate_uniform_points_svd(X)
-        U = gen_ref(X)
+        U = gen_ref(X, random_state)
 
         for k in xrange(K):
             # cluster the data
-            kmeans = KMeans(n_clusters = k + 1, n_init = n_init_, 
-                    max_iter = max_iter_).fit(U)
+            kmeans = KMeans(n_clusters = k + 1, **kwargs).fit(U)
 
             # dispersion
             W_exp[b, k] = dispersion(U, kmeans.labels_)
@@ -148,20 +160,23 @@ def gap(X, K = 10, B = 10, ref_method="obsfeat"):
     
     return k_hat, W_obs, W_exp_mean, W_exp_std
 
-def generate_uniform_points(X):
+def generate_uniform_points(X, random_state):
     """Generate Uniform points in the observed data X range
 
     Generate each reference feature uniformly over the range of the observed
     values for that particular feature
 
-    Paramters
+    Parameters
     ---------
-    X: {array-like, sparse matrix}, shape=(n_samples, n_features)
-        dataset to generate features range from
+    X : array-like, shape=(n_samples, n_features)
+        Dataset to generate features range from
 
+    random_state : numpy.RandomState
+        The generator used to generate the reference samples.
+    
     Returns
     -------
-    U: array-like, shape=(n_samples, n_features)
+    U : array-like, shape=(n_samples, n_features)
         uniformly generated dataset, where each uniform feature is generated in
         the range of each observed feature
 
@@ -175,27 +190,30 @@ def generate_uniform_points(X):
     N = X.shape[0]
 
     # for each feature generate N uniform points in range (mins, maxs]
-    U = [np.random.uniform(low=mins[f], high=maxs[f], size=N) for f in
+    U = [random_state.uniform(low=mins[f], high=maxs[f], size=N) for f in
             xrange(len(mins))]
 
     return np.asarray(U).T
 
-def generate_uniform_points_svd(X):
+def generate_uniform_points_svd(X, random_state):
     """Generate Uniform points in the observed data X range
 
     Generate the reference features from a uniform distribution over a box
     aligned with the principal components of the data. Using singular value
     decomposition (UDV)
 
-    Paramters
+    Parameters
     ---------
-    X: {array-like, sparse matrix}, shape=(n_samples, n_features)
-        dataset to generate features range from
+    X : array-like, shape=(n_samples, n_features)
+        Dataset to generate features range from
 
+    random_state : numpy.RandomState
+        The generator used to generate the reference samples.
+    
     Returns
     -------
-    U: array-like, shape=(n_samples, n_features)
-        uniformly generated dataset, where each uniform feature is generated in
+    U : array-like, shape=(n_samples, n_features)
+        Uniformly generated dataset, where each uniform feature is generated in
         the range of each observed feature
 
     """
@@ -205,7 +223,7 @@ def generate_uniform_points_svd(X):
 
     # tranform it and draw uniform points in the range of columns
     X_a = np.dot(X, V)    
-    Z = generate_uniform_points(X_a)
+    Z = generate_uniform_points(X_a, random_state)
 
     # back-tranform and return the result
     return np.dot(Z, np.transpose(V))
@@ -219,11 +237,11 @@ def dispersion(X, labels):
 
     Parameters
     ----------
-    X: {array-like, sparse matrix}, shape=(n_samples, n_features)
-        dataset to estimate the clusters in
+    X : array-like, shape=(n_samples, n_features)
+        Dataset to estimate the clusters in
 
-    labels: array, shape=(n_samples)
-        label of each instance in X
+    labels : array, shape=(n_samples)
+        Label of each instance in X
 
     Returns
     -------
@@ -236,46 +254,4 @@ def dispersion(X, labels):
     # compute the within-cluster dispersion
     return sum([sum(pdist(X[labels == c])) / (2. * len(labels[labels == c])) \
                 for c in np.unique(labels)])
-
-if __name__ == "__main__":
-    # generate dataset
-    
-    #np.random.seed(4711)
-    #a = np.random.multivariate_normal([10, 0], [[3, 1], [1, 4]],size=[10,])  
-    #b = np.random.multivariate_normal([0, 20], [[3, 1], [1, 4]], size=[10,])
-
-    #X = np.concatenate((a, b))
-
-    X = np.asarray([[9.21188389,-0.15188589],
-            [8.88937431,-0.33937464],
-            [10.76840064,2.95244645],
-            [8.24213268,1.29094802],
-            [5.7967009,-5.83776714],
-            [6.3499309,0.63959515],
-            [8.1057123,-0.45887277],
-            [8.72084884,-4.40444487],
-            [8.83500513,-0.3916611 ],
-            [10.4006121,2.71240817],
-            [1.95503402,21.98602715],
-            [-1.4985815,20.50349583],
-            [-0.7664081,21.30693205],
-            [2.27768001,21.62763958],
-            [0.95901841,19.87247968],
-            [-1.27562588,19.26898089],
-            [-0.35050873,23.4198941 ],
-            [1.49912084,19.44886828],
-            [1.48256428,19.71376506],
-            [-1.41259576,21.66814229]])
-
-    # run gap statistics algorithm
-    k, W_obs, W_exp, W_exp_std = gap(X, ref_method="obsfeat")
-
-    print "---W obs---"
-    print W_obs
-    print "---W exp---"
-    print W_exp
-    print "---W exp std---"
-    print W_exp_std
-    print "---Number of Estimated Clusters---"
-    print "k --> %d" %(k)
 
