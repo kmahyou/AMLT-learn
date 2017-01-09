@@ -78,6 +78,8 @@ def gap_statistics(X, K = 10, B = 10, ref_method = "unif",
     W_exp_std : array, shape(K)
         Standard deviation of dispersion for different K's for generated
         dataset.
+    gaps : array, shape(K)
+        The computed gaps between W_obs and W_exp
 
     Examples
     --------
@@ -88,7 +90,7 @@ def gap_statistics(X, K = 10, B = 10, ref_method = "unif",
         ... [10.76840064,2.95244645], [-1.41259576,21.66814229],
         ... [1.48256428,19.71376506], [1.49912084,19.44886828]]
     >>> kmeans_args = {'n_init': 10,'max_iter': 500}
-    >>> k, W_obs, W_exp, W_exp_std = gap_statistics(X, K = 4, B = 10, 
+    >>> k, W_obs, W_exp, W_exp_std, gaps = gap_statistics(X, K = 4, B = 10, 
         ... random_state=42, **kmeans_args)
     >>> k
     2
@@ -158,7 +160,7 @@ def gap_statistics(X, K = 10, B = 10, ref_method = "unif",
     k_hat = np.min([k+1 for k in xrange(K-1) \
                     if gaps[k] >= gaps[k+1]-W_exp_std[k+1]])
     
-    return k_hat, W_obs, W_exp_mean, W_exp_std
+    return k_hat, W_obs, W_exp_mean, W_exp_std, gaps
 
 def generate_uniform_points(X, random_state):
     """Generate Uniform points in the observed data X range
