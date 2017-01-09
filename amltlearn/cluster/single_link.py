@@ -22,6 +22,8 @@ __author__ = 'kmahyou'
 
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.utils import check_array
+from scipy.spatial.distance import pdist
+from scipy.cluster.hierarchy import fcluster, linkage
 import numpy as np
 
 class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
@@ -34,6 +36,10 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
     h : float
         Cut-off distance. Distance-h stopping condition: Distance between any
         pair of clusters in the clustering should be grater than h.
+
+    method : {"slink", "naive"}, default="slink"
+        Single Link version. Naive version or SLINK version. The SLINK
+        algorithm is much more faster than naive one.
     
     Attributes
     ----------
@@ -44,14 +50,8 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
     labels_ : array, shape=(n_instances)
         Label of each instance
 
-    n_clusters : int
+    n_clusters_ : int
         Total number of clusters
-    
-    height_ : array, shape=(n_instances)
-        Indicates when one object joined the cluster of another object
-
-    parent_ : array, shape=(n_instances)
-        Indicates who leads the parent cluster. It is useful to track merges
 
     Examples
     --------
@@ -77,13 +77,12 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
     # INFINITY definition
     INF = np.inf
 
-    def __init__(self, h):
+    def __init__(self, h, method = 'slink'):
         self.h = h
+        self.method = method
         self.clusters_ = None
-        self.n_clusters = None
+        self.n_clusters_ = None
         self.labels_ = None
-        self.height_ = None
-        self.parent_ = None
 
     def fit(self, X):
         """Computes single link hierarchical clustering
@@ -101,26 +100,53 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
 
         X = check_array(X)
 
-        # compute
-        clusters, self.height_, self.parent_ = self._fit_process(X)
+        self.clusters_ = []        
+        self.n_clusters_ = 0
+        
+        if self.method == 'naive':
+            # compute the NAIVE version
+            clusters, self.n_clusters_ = self._fit_process_naive(X)
+        
+            # convert from a dictionary to an array, where each element of this
+            # array is a list of identifiers that identify an instance
+            for key in clusters.keys():
+                self.clusters_.append(clusters[key])
 
-        self.n_clusters_ = len(clusters.keys())
+            # for every instance in X assign it the predicted label
+            self.labels_ = np.zeros(X.shape[0], dtype=np.int32)
+            for l, ej in enumerate(self.clusters_):
+                self.labels_[ej] = l
+        
+        elif self.method == 'slink':
+            # compute the SLINK version
+            clusters = self._fit_process_slink(X)
+            ods = np.arange(X.shape[0])
 
-        # convert from a dictionary to an array, where each element of this
-        # array is a list of identifiers that identify an instance
-        self.clusters_ = []
-        for key in clusters.keys():
-            self.clusters_.append(clusters[key])
+            # convert to an array of clusters
+            for c in np.unique(clusters):
+                self.clusters_.append(list(ods[clusters == c]))
+                self.n_clusters_ += 1
 
-        # for every instance in X assign it the predicted label
-        self.labels_ = np.zeros(X.shape[0], dtype=np.int32)
-        for l, ej in enumerate(self.clusters_):
-            self.labels_[ej] = l
-
+            self.labels_ = clusters
+        
         return self
 
-    def _fit_process(self, X):
-        """Compute the hierarchical clustering"""
+    def _fit_process_slink(self, X):
+        """Computes the hierarchical clustering in slink way"""
+
+        # compute pairwise distances
+        y = pdist(X, metric='euclidean')
+       
+        # compute clusterings
+        Z = linkage(y, method='single', metric='euclidean')
+
+        # convert a linkage matrix to flat clusterins
+        clusters = fcluster(Z, self.h, 'distance')
+
+        return clusters
+
+    def _fit_process_naive(self, X):
+        """Compute the hierarchical clustering in naive way"""
      
         # dataset size -> number of samples
         N = X.shape[0]
@@ -181,7 +207,7 @@ class SingleLink(BaseEstimator, ClusterMixin, TransformerMixin):
             if x not in clusters.keys():
                 clusters[x] = [x]
 
-        return clusters, height, parent
+        return clusters, len(clusters.keys())
 
     def _compute_distances(self, X):
         """Computes the Euclidean distance
